@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { ExportProject, GenerateAudio, GenerateImage, GenerateProject, GenerateVideo, GetMediaData, GetProject, GetSettings, PlanStory, SaveProject, SaveSettings } from '../wailsjs/go/main/App'
+import { ExportProject, GenerateAudio, GenerateImage, GenerateProject, GenerateVideo, GetMediaData, GetProject, GetSettings, NewProject, PlanStory, SaveProject, SaveSettings } from '../wailsjs/go/main/App'
 
 const project = ref({ name: '未命名项目', format: '9:16', duration: 30, story: '', characters: [], locations: [], scenes: [] })
 const settings = ref({ apiKey: '', domain: 'cn' })
@@ -41,6 +41,20 @@ async function saveProject() {
     message.value = '项目已保存'
     setTimeout(() => { message.value = '' }, 2200)
   } catch (error) { message.value = '保存失败：' + error }
+}
+
+async function newProject() {
+  if (project.value.story || project.value.scenes?.length || project.value.characters?.length || project.value.locations?.length) {
+    if (!window.confirm('确定新建会话吗？当前编辑内容会被清空，已生成的媒体文件仍会保留在本机。')) return
+  }
+  try {
+    project.value = await NewProject()
+    activeScene.value = 0
+    panel.value = 'story'
+    previewData.value = ''
+    saved.value = true
+    message.value = '已新建会话'
+  } catch (error) { message.value = '新建失败：' + error }
 }
 
 async function planStory() {
@@ -136,6 +150,7 @@ function setScene(index) { activeScene.value = index; panel.value = 'scenes'; lo
       <div class="brand"><div class="brand-mark">hv</div><div><strong>HVV</strong><span>AI video workshop</span></div></div>
       <div class="top-actions">
         <span v-if="message" class="toast">{{ message }}</span>
+        <button class="button ghost" @click="newProject">＋ 新建会话</button>
         <button class="button ghost" @click="showSettings = true">设置</button>
         <button class="button primary" @click="saveProject">{{ saved ? '已保存' : '保存项目' }}</button>
       </div>

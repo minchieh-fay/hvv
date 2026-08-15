@@ -40,3 +40,4 @@ go.work.sum
 frontend/node_modules/
 frontend/dist/
 build/bin/
+.smb*

@@ -34,6 +34,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function NewProject() {
+  return window['go']['main']['App']['NewProject']();
+}
+
 export function PlanStory(arg1) {
   return window['go']['main']['App']['PlanStory'](arg1);
 }

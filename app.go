@@ -136,6 +136,13 @@ func (a *App) GetProject() Project {
 	return project
 }
 
+// NewProject starts a clean workspace while keeping previously generated media on disk.
+func (a *App) NewProject() (Project, error) {
+	project := defaultProject()
+	project.Name = "未命名项目"
+	return project, a.SaveProject(project)
+}
+
 func (a *App) SaveProject(project Project) error {
 	project.UpdatedAt = time.Now().Format(time.RFC3339)
 	return writeJSON(filepath.Join(dataDir(), "project.json"), project)

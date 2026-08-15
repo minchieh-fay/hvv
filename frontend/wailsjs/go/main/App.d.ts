@@ -18,6 +18,8 @@ export function GetProject():Promise<main.Project>;
 
 export function GetSettings():Promise<main.Settings>;
 
+export function NewProject():Promise<main.Project>;
+
 export function PlanStory(arg1:main.PlanRequest):Promise<main.Project>;
 
 export function SaveProject(arg1:main.Project):Promise<void>;
