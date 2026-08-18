@@ -32,6 +32,7 @@ go.work.sum
 # .vscode/
 
 # tmp
+tmp
 [1-9].txt
 [1-9].md
 [1-9].log
