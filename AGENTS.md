@@ -32,3 +32,6 @@ dbpwd := help_getdbpwd(user)
 5. 后端全部使用http接口给前端使用api, 严谨使用wails的ipc通讯
 后端写了http接口后 写入文档  doc/http-api.md
 前端开发的时候 可以参考这个api文档
+
+6. 不要把一行代码写很长 不要超过120个字符(含空格等字符)  不然代码不好读
+7. 分析制作视频问题, 可以看日志 ~/.hvv/media/{日期}/video/{session}/logs/

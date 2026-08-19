@@ -1,6 +1,7 @@
 package media
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -87,6 +88,106 @@ func (s *Service) List(date string) ([]File, error) {
 	return files, nil
 }
 
+// CreateVideoSession 创建视频 Session 目录并保存初始配置。
+func (s *Service) CreateVideoSession(date, sessionID string, data []byte) (File, error) {
+	if err := help_validateVideoLocation(date, sessionID, ""); err != nil {
+		return File{}, err
+	}
+	return s.saveVideoBytes(date, sessionID, "session.json", data)
+}
+
+// ReadVideoSession 读取视频 Session 的配置文件。
+func (s *Service) ReadVideoSession(date, sessionID string) ([]byte, error) {
+	if err := help_validateVideoLocation(date, sessionID, ""); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join(s.root, date, "video", sessionID, "session.json"))
+}
+
+// ListVideoSessions 返回指定日期下的视频 Session 配置列表。
+func (s *Service) ListVideoSessions(date string) ([]map[string]any, error) {
+	if date == "" {
+		date = time.Now().Format("20060102")
+	}
+	if !help_validDate(date) {
+		return nil, fmt.Errorf("日期格式错误")
+	}
+	dir := filepath.Join(s.root, date, "video")
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sessions := make([]map[string]any, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() || !help_videoIDPattern.MatchString(entry.Name()) {
+			continue
+		}
+		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name(), "session.json"))
+		if readErr != nil {
+			continue
+		}
+		var session map[string]any
+		if jsonErr := json.Unmarshal(data, &session); jsonErr != nil {
+			continue
+		}
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+
+// DeleteVideoSession 删除指定视频 Session 及其所有片段、日志和生成媒体。
+func (s *Service) DeleteVideoSession(date, sessionID string) error {
+	if err := help_validateVideoLocation(date, sessionID, ""); err != nil {
+		return err
+	}
+	path := filepath.Join(s.root, date, "video", sessionID)
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("删除视频 Session 失败: %w", err)
+	}
+	return nil
+}
+
+// SaveVideoFile 保存视频模块的 JSON、图片或视频文件。
+func (s *Service) SaveVideoFile(date, sessionID, relativePath string, data []byte) (File, error) {
+	if err := help_validateVideoLocation(date, sessionID, relativePath); err != nil {
+		return File{}, err
+	}
+	return s.saveVideoBytes(date, sessionID, relativePath, data)
+}
+
+// AppendVideoFile 向视频 Session 的日志文件追加一行内容。
+func (s *Service) AppendVideoFile(date, sessionID, relativePath string, data []byte) (File, error) {
+	if err := help_validateVideoLogLocation(date, sessionID, relativePath); err != nil {
+		return File{}, err
+	}
+	dir := filepath.Join(s.root, date, "video", sessionID, filepath.Dir(filepath.FromSlash(relativePath)))
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return File{}, err
+	}
+	absolutePath := filepath.Join(dir, filepath.Base(filepath.FromSlash(relativePath)))
+	file, err := os.OpenFile(absolutePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return File{}, err
+	}
+	defer file.Close()
+	if _, err := file.Write(data); err != nil {
+		return File{}, err
+	}
+	path := filepath.Join(date, "video", sessionID, filepath.FromSlash(relativePath))
+	return File{Path: filepath.ToSlash(path), Date: date}, nil
+}
+
+// ReadVideoFile 读取视频 Session 下的指定文件内容。
+func (s *Service) ReadVideoFile(date, sessionID, relativePath string) ([]byte, error) {
+	if err := help_validateVideoLocation(date, sessionID, relativePath); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join(s.root, date, "video", sessionID, filepath.FromSlash(relativePath)))
+}
+
 // Delete 删除媒体根目录内指定的图片文件。
 func (s *Service) Delete(relativePath string) error {
 	absolutePath, err := filepath.Abs(filepath.Join(s.root, filepath.FromSlash(relativePath)))
@@ -131,10 +232,29 @@ func (s *Service) saveBytes(data []byte, extension string) (File, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return File{}, err
 	}
-	name := fmt.Sprintf("%s-%04d.%s", time.Now().Format("150405.000"), time.Now().UnixNano()%10000, strings.TrimPrefix(extension, "."))
+	name := fmt.Sprintf(
+		"%s-%04d.%s",
+		time.Now().Format("150405.000"),
+		time.Now().UnixNano()%10000,
+		strings.TrimPrefix(extension, "."),
+	)
 	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		return File{}, err
 	}
 	return File{Path: filepath.Join(date, "img", name), Date: date}, nil
+}
+
+// saveVideoBytes 将视频模块文件写入指定 Session 目录。
+func (s *Service) saveVideoBytes(date, sessionID, relativePath string, data []byte) (File, error) {
+	dir := filepath.Join(s.root, date, "video", sessionID, filepath.Dir(filepath.FromSlash(relativePath)))
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return File{}, err
+	}
+	absPath := filepath.Join(dir, filepath.Base(filepath.FromSlash(relativePath)))
+	if err := os.WriteFile(absPath, data, 0600); err != nil {
+		return File{}, err
+	}
+	path := filepath.Join(date, "video", sessionID, filepath.FromSlash(relativePath))
+	return File{Path: filepath.ToSlash(path), Date: date}, nil
 }

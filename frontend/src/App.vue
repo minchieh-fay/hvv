@@ -4,6 +4,7 @@ import {ChatDotRound, Picture, Setting, VideoCamera} from '@element-plus/icons-v
 import ChatPanel from './chat/ChatPanel.vue';
 import SettingsPanel from './config/SettingsPanel.vue';
 import ImagePanel from './image/ImagePanel.vue';
+import VideoPanel from './video/view/VideoPanel.vue';
 import {llmStore} from './store/llm';
 
 const activeView = ref('chat');
@@ -37,6 +38,9 @@ const activeView = ref('chat');
       </div>
       <div v-else-if="activeView === 'image'" class="content-area image-area">
         <ImagePanel />
+      </div>
+      <div v-else-if="activeView === 'video'" class="content-area video-area">
+        <VideoPanel />
       </div>
       <div v-else class="content-area module-placeholder">
         <el-icon><Picture v-if="activeView === 'image'" /><VideoCamera v-else /></el-icon>

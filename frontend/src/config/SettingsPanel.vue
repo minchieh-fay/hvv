@@ -1,26 +1,26 @@
 <script setup>
-import {ref} from 'vue';
-import {ElMessage} from 'element-plus';
-import {llmStore} from '../store/llm';
+import { ref } from "vue";
+import { ElMessage } from "element-plus";
+import { llmStore } from "../store/llm";
 
 const apiKey = ref(llmStore.state.apiKey);
 const saving = ref(false);
 
 async function save() {
-    if (!apiKey.value.trim()) {
-        ElMessage.warning('请输入 API Key');
-        return;
-    }
-    saving.value = true;
-    try {
-        const savedKey = apiKey.value.trim();
-        await llmStore.saveAPIKey(savedKey);
-        ElMessage.success('API Key 已保存');
-    } catch (error) {
-        ElMessage.error(error?.message || '保存失败');
-    } finally {
-        saving.value = false;
-    }
+  if (!apiKey.value.trim()) {
+    ElMessage.warning("请输入 API Key");
+    return;
+  }
+  saving.value = true;
+  try {
+    const savedKey = apiKey.value.trim();
+    await llmStore.saveAPIKey(savedKey);
+    ElMessage.success("API Key 已保存");
+  } catch (error) {
+    ElMessage.error(error?.message || "保存失败");
+  } finally {
+    saving.value = false;
+  }
 }
 </script>
 
@@ -41,6 +41,14 @@ async function save() {
         <span>聊天模型</span>
         <code>{{ llmStore.state.model }}</code>
       </div>
+      <el-form-item label="Agent 调试追踪">
+        <el-switch
+          v-model="llmStore.state.traceSensitive"
+          active-text="记录完整输入输出"
+          inactive-text="仅记录结构和状态"
+          @change="llmStore.setTraceSensitive"
+        />
+      </el-form-item>
       <el-button type="primary" :loading="saving" @click="save">保存 API Key</el-button>
       <span v-if="llmStore.state.apiKeyConfigured" class="configured">已配置</span>
     </el-form>

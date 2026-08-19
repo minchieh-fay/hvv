@@ -12,6 +12,7 @@ func (s *Server) routes() http.Handler {
 	s.registerConfigRoutes(router)
 	s.registerMediaRoutes(router)
 	s.registerImageRoutes(router)
+	s.registerVideoRoutes(router)
 	router.Handle("/*", s.frontendHandler())
 	return router
 }

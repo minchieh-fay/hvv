@@ -9,6 +9,7 @@ import (
 )
 
 var help_datePattern = regexp.MustCompile(`^\d{8}$`)
+var help_videoIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 // help_decodeDataURL 解码图片 Data URI 并推断文件扩展名。
 func help_decodeDataURL(value string) ([]byte, string, error) {
@@ -32,4 +33,32 @@ func help_validDate(value string) bool { return help_datePattern.MatchString(val
 func help_isInside(root, target string) bool {
 	relative, err := filepath.Rel(root, target)
 	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+// help_validateVideoLocation 校验视频 Session 和媒体文件的相对路径。
+func help_validateVideoLocation(date, sessionID, relativePath string) error {
+	if !help_validDate(date) || !help_videoIDPattern.MatchString(sessionID) {
+		return fmt.Errorf("视频 Session 标识无效")
+	}
+	if relativePath == "" {
+		return nil
+	}
+	clean := filepath.Clean(filepath.FromSlash(relativePath))
+	outsideSession := strings.HasPrefix(clean, ".."+string(filepath.Separator))
+	if clean == "." || filepath.IsAbs(clean) || outsideSession || clean == ".." {
+		return fmt.Errorf("视频媒体路径无效")
+	}
+	return nil
+}
+
+// help_validateVideoLogLocation 限制日志只能写入 Session 的 logs 目录。
+func help_validateVideoLogLocation(date, sessionID, relativePath string) error {
+	if err := help_validateVideoLocation(date, sessionID, relativePath); err != nil {
+		return err
+	}
+	clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(relativePath)))
+	if !strings.HasPrefix(clean, "logs/") || filepath.Ext(clean) != ".jsonl" {
+		return fmt.Errorf("日志路径必须位于 logs 目录且使用 jsonl 文件")
+	}
+	return nil
 }
