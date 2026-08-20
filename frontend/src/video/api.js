@@ -139,24 +139,29 @@ export async function publishFrame(dataURL, context, signal) {
   return url;
 }
 
-// 创建一个 Agnes 视频任务，只有明确的尾帧才使用 keyframes 模式。
+// 创建一个 Agnes 视频任务，只有存在首帧时才填写视频生成模式。
 export async function createAgnesVideo(payload, context, signal, onRetry) {
+  const hasFirstFrame = Boolean(payload.firstFrame);
+  const hasLastFrame = hasFirstFrame && Boolean(payload.lastFrame);
   const body = {
     model: "agnes-video-v2.0",
     prompt: payload.prompt,
     negative_prompt: payload.negativePrompt,
-    mode: payload.lastFrame ? "keyframes" : "ti2vid",
     width: payload.ratio === "16:9" ? 1152 : 768,
     height: payload.ratio === "16:9" ? 768 : 1152,
     frame_rate: 24,
     ...(payload.numFrames ? { num_frames: payload.numFrames } : {}),
-    extra_body: {
-      mode: payload.lastFrame ? "keyframes" : "ti2vid",
-      image: payload.lastFrame
+  };
+  if (hasFirstFrame) {
+    const mode = hasLastFrame ? "keyframes" : "ti2vid";
+    body.mode = mode;
+    body.extra_body = {
+      mode,
+      image: hasLastFrame
         ? [payload.firstFrame, payload.lastFrame]
         : [payload.firstFrame],
-    },
-  };
+    };
+  }
   for (let retryCount = 0; ; retryCount += 1) {
     const response = await fetch(`${context.settings.baseURL}/videos`, {
       method: "POST",

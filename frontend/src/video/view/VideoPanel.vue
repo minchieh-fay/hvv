@@ -342,7 +342,8 @@ function buildNegativePrompt(segment) {
 // 校验当前片段并直接创建 Agnes 视频任务。
 async function generateSegment() {
   const segment = activeSegment.value;
-  if (!segment.firstFrame) return ElMessage.warning("请选择首帧参考图");
+  if (selectedSegment.value > 0 && !segment.firstFrame)
+    return ElMessage.warning("请先完成上一段视频以自动衔接首帧");
   if (!segment.plot.trim()) return ElMessage.warning("剧情描述不能为空");
   if (segment.duration < 0 || segment.duration > 18)
     return ElMessage.warning("片段时长必须是 0 到 18 秒");
@@ -363,7 +364,9 @@ async function generateSegment() {
       ratio: session.value.ratio,
       duration: Number(segment.duration),
       numFrames: help_durationToFrames(Number(segment.duration)),
-      mode: segment.lastFrame ? "keyframes" : "ti2vid",
+      ...(segment.firstFrame
+        ? { mode: segment.lastFrame ? "keyframes" : "ti2vid" }
+        : {}),
       hasFirstFrame: Boolean(segment.firstFrame),
       hasLastFrame: Boolean(segment.lastFrame),
       prompt: buildPrompt(segment),
@@ -858,7 +861,7 @@ async function backToList() {
                   <strong>首帧参考图</strong
                   ><small>{{
                     selectedSegment === 0
-                      ? "必须从图片库选择官方网络图"
+                      ? "可选，不选择则使用文生视频"
                       : "自动使用上一段尾帧"
                   }}</small>
                 </div>
