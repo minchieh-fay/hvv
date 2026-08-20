@@ -282,6 +282,15 @@ Agnes API；Go HTTP 服务只负责 Session 和媒体文件持久化，不使用
 由 Agnes 按文生视频处理；有首帧但没有尾帧时使用 `ti2vid`，首尾帧都有时使用
 `keyframes`。
 
+### 打开视频 Session 所在目录
+
+```http
+POST /api/videos/sessions/{session-id}/open?date=20260820
+```
+
+请求成功后，服务端会使用当前操作系统的文件管理器打开视频 Session 目录：
+macOS 使用 Finder，Windows 使用资源管理器。
+
 ### 追加视频 Agent 日志
 
 ```http

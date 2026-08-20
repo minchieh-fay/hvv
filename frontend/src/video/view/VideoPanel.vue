@@ -13,7 +13,6 @@ import {
   Film,
   FolderOpened,
   Plus,
-  Download,
   VideoPlay,
 } from "@element-plus/icons-vue";
 import { concatMp4Segments } from "../concat";
@@ -26,6 +25,7 @@ import {
   listVideoSessions,
   loadVideoContext,
   loadVideoSession,
+  openVideoSessionDirectory,
   publishFrame,
   saveVideoFile,
   saveRemoteVideoFile,
@@ -78,27 +78,6 @@ const finalVideoURL = computed(() =>
     ? sessionMediaURL(session.value.finalVideoPath)
     : "",
 );
-const exportOptions = computed(() => {
-  const options = [];
-  if (session.value?.finalVideoPath) {
-    options.push({
-      id: "final",
-      label: "完整视频.mp4",
-      path: session.value.finalVideoPath,
-      type: "final",
-    });
-  }
-  completedSegments.value.forEach((item, index) => {
-    options.push({
-      id: item.id,
-      label: `小段${index + 1}.mp4`,
-      path: item.videoPath,
-      type: "segment",
-    });
-  });
-  return options;
-});
-const selectedExportIDs = ref([]);
 const obeyPlaceholders = [
   "例如：固定镜头",
   "例如：保持中景",
@@ -529,69 +508,14 @@ function preparePreview(index) {
   });
 }
 
-// 读取选中的 Session 视频，供导出保存或片段合成使用。
-async function loadExportBlob(option) {
-  const response = await fetch(sessionMediaURL(option.path));
-  if (!response.ok) throw new Error(`读取${option.label}失败`);
-  return response.blob();
-}
-
-// 打开系统保存对话框，将视频副本写入用户选择的位置。
-async function saveExportBlob(blob, filename) {
-  if (window.showSaveFilePicker) {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: filename,
-      types: [
-        {
-          description: "MP4 视频",
-          accept: { "video/mp4": [".mp4"] },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return;
-  }
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-// 将用户勾选的视频复制到本地文件，不移动或修改 Session 内的源文件。
-async function exportVideos() {
-  const options = exportOptions.value.filter((item) =>
-    selectedExportIDs.value.includes(item.id),
-  );
-  if (!options.length) {
-    ElMessage.warning("请先选择要导出的视频");
-    return;
-  }
-  loading.value = true;
+// 请求系统打开当前视频 Session 所在目录。
+async function openVideoDirectory() {
   try {
-    let blob;
-    let filename;
-    if (options.length === 1) {
-      blob = await loadExportBlob(options[0]);
-      filename = options[0].label;
-    } else {
-      if (options.some((item) => item.type === "final"))
-        throw new Error("完整视频不能与片段同时导出");
-      blob = await concatMp4Segments(
-        options.map((item) => sessionMediaURL(item.path)),
-      );
-      filename = "选中片段.mp4";
-    }
-    await saveExportBlob(blob, filename);
-    ElMessage.success("视频已导出");
+    await openVideoSessionDirectory(session.value);
+    ElMessage.success("已打开视频所在位置");
   } catch (error) {
     if (error?.name !== "AbortError")
-      ElMessage.error(help_describeError(error, "导出视频失败"));
-  } finally {
-    loading.value = false;
+      ElMessage.error(help_describeError(error, "打开视频所在位置失败"));
   }
 }
 
@@ -1014,27 +938,14 @@ async function backToList() {
               </div>
               <div class="video-export-panel">
                 <div class="single-video-title">
-                  <strong>导出视频</strong>
-                  <span>完整视频和片段均为原文件副本</span>
-                </div>
-                <div class="video-export-list">
-                  <el-checkbox-group v-model="selectedExportIDs">
-                    <el-checkbox
-                      v-for="item in exportOptions"
-                      :key="item.id"
-                      :label="item.id"
-                      class="video-export-option"
-                    >
-                      {{ item.label }}
-                    </el-checkbox>
-                  </el-checkbox-group>
+                  <strong>视频文件</strong>
+                  <span>打开当前 Session 的本地文件夹</span>
                 </div>
                 <el-button
                   type="primary"
-                  :disabled="!selectedExportIDs.length"
-                  @click="exportVideos"
+                  @click="openVideoDirectory"
                 >
-                  <el-icon><Download /></el-icon>导出选中视频
+                  <el-icon><FolderOpened /></el-icon>打开视频所在位置
                 </el-button>
               </div>
               <div v-if="finalVideoURL" class="final-video-player">

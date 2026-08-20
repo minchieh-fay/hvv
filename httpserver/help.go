@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
+	"runtime"
 	"strings"
 )
 
@@ -32,6 +34,22 @@ func help_validateAgnesVideoURL(value string) error {
 		return fmt.Errorf("视频地址不是 Agnes 官方域名")
 	}
 	return nil
+}
+
+// help_openDirectory 使用当前操作系统的文件管理器打开指定目录。
+func help_openDirectory(directory string) error {
+	var command string
+	switch runtime.GOOS {
+	case "darwin":
+		command = "open"
+	case "windows":
+		command = "explorer.exe"
+	case "linux":
+		command = "xdg-open"
+	default:
+		return fmt.Errorf("当前操作系统不支持打开文件夹")
+	}
+	return exec.Command(command, directory).Start()
 }
 
 // help_writeJSON 写入统一的 JSON 响应头和响应体。

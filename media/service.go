@@ -42,6 +42,23 @@ func New() (*Service, error) {
 // Root 返回媒体根目录，供 HTTP 静态服务使用。
 func (s *Service) Root() string { return s.root }
 
+// SessionDirectory 返回视频 Session 在本机的目录，并校验目录确实存在。
+func (s *Service) SessionDirectory(date, sessionID string) (string, error) {
+	// 校验日期、Session 标识，阻止目录路径穿越。
+	if err := help_validateVideoLocation(date, sessionID, ""); err != nil {
+		return "", err
+	}
+	directory := filepath.Join(s.root, date, "video", sessionID)
+	info, err := os.Stat(directory)
+	if err != nil {
+		return "", fmt.Errorf("视频 Session 目录不存在: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("视频 Session 路径不是目录")
+	}
+	return directory, nil
+}
+
 // SaveDataURL 将前端传来的图片 Data URI 保存到当天的图片目录。
 func (s *Service) SaveDataURL(dataURL, extension string) (File, error) {
 	data, detectedExtension, err := help_decodeDataURL(dataURL)

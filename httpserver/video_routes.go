@@ -32,11 +32,38 @@ func (s *Server) registerVideoRoutes(router chi.Router) {
 	router.Delete("/api/videos/sessions/{sessionID}", s.handleDeleteVideoSession)
 	router.Get("/api/videos/sessions/{sessionID}", s.handleReadVideoSession)
 	router.Put("/api/videos/sessions/{sessionID}", s.handleSaveVideoSession)
+	router.Post("/api/videos/sessions/{sessionID}/open", s.handleOpenVideoSessionDirectory)
 	router.Post("/api/videos/sessions/{sessionID}/files/remote", s.handleSaveRemoteVideo)
 	router.Post("/api/videos/sessions/{sessionID}/files", s.handleSaveVideoFile)
 	router.Get("/api/videos/sessions/{sessionID}/files", s.handleReadVideoFile)
 	router.Post("/api/videos/sessions/{sessionID}/logs", s.handleAppendVideoLog)
 	router.Get("/api/videos/sessions/{sessionID}/logs", s.handleReadVideoLog)
+}
+
+// handleOpenVideoSessionDirectory 请求系统打开当前视频 Session 所在目录。
+func (s *Server) handleOpenVideoSessionDirectory(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	date := request.URL.Query().Get("date")
+	if date == "" {
+		date = time.Now().Format("20060102")
+	}
+	// 获取并校验当前视频 Session 的本地目录。
+	directory, err := s.mediaService.SessionDirectory(
+		date,
+		chi.URLParam(request, "sessionID"),
+	)
+	if err != nil {
+		help_writeJSONError(writer, err, http.StatusBadRequest)
+		return
+	}
+	// 使用系统文件管理器打开视频目录。
+	if err := help_openDirectory(directory); err != nil {
+		help_writeJSONError(writer, fmt.Errorf("打开视频所在位置失败: %w", err), http.StatusInternalServerError)
+		return
+	}
+	help_writeJSON(writer, map[string]string{"path": directory})
 }
 
 // handleSaveRemoteVideo 由 Go 下载 Agnes 视频，绕过远程视频服务器的浏览器跨域限制。

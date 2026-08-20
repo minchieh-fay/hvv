@@ -42,6 +42,15 @@ export async function saveVideoSession(session) {
   );
 }
 
+// 请求系统打开视频 Session 所在目录。
+export async function openVideoSessionDirectory(session) {
+  return requestJSON(
+    `/api/videos/sessions/${encodeURIComponent(session.id)}/open?date=` +
+      `${encodeURIComponent(session.date)}`,
+    { method: "POST" },
+  );
+}
+
 // 删除视频制作 Session。
 export async function deleteVideoSession(session) {
   return requestJSON(
