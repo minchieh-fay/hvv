@@ -19,7 +19,7 @@ import {
   saveVideoSession,
   waitForAgnesVideo,
 } from "../api";
-import { createVideoScriptAgent, runVideoWorkflow } from "../agents/index";
+import { createVideoProductionAgent, createVideoScriptAgent } from "../agents/index";
 import { concatMp4Segments } from "../infra/concat";
 import { appendVideoLog } from "../log";
 import { extractVideoFrame } from "../infra/frame";
@@ -651,7 +651,7 @@ async function generateKeyframe(prompt, referencePaths, path) {
   }
 }
 
-// 按剧本分阶段生成视频，每个阶段由独立 Agent 负责。
+// 按剧本生成片段，并用浏览器提取真实尾帧作为后续参考。
 async function generateVideo() {
   if (!scriptData.value || generating.value) return;
   generating.value = true;
@@ -659,36 +659,31 @@ async function generateVideo() {
   session.value.status = "generating";
   try {
     const context = await loadVideoContext();
-    const referenceText = selectedReferenceItems.value
-      .map((item) => `${item.path} | 名称：${item.name} | 描述：${item.description || "无描述"}`)
-      .join("\n");
-
-    // 构建 callbacks 对象，供各子 Agent 调用底层工具函数。
-    const callbacks = {
-      session: session.value,
+    const traceConfig = configureVideoTracing(session.value);
+    const { agent, runner } = createVideoProductionAgent(context, {
       ratio: ratio.value,
-      segments: segments.value,
-      // 帧生成回调
       generateKeyframe: agentGenerateKeyframe,
       generateSegment: agentGenerateSegment,
       extractFrame: agentExtractFrame,
       checkFrame: agentCheckFrame,
-      // 进度回调
       updatePreview: agentUpdatePreview,
       saveSession: agentSaveSession,
       concat: agentConcat,
-      // 阶段变更回调
-      onPhaseChange(phase, text) {
-        progressText.value = text;
-      },
-    };
-
-    await recordEvent("video.requested", {
-      prompt: `Session=${session.value.id}\n剧本片段数=${scriptData.value.scenes?.length || 0}`,
-      model: "agnes-video-v2.0",
     });
-    const result = await runVideoWorkflow(context, scriptData.value, callbacks);
-    if (!result.success || !segments.value.some((segment) => segment.url && Number(segment.actualDuration) > 0)) {
+    const referenceText = selectedReferenceItems.value
+      .map((item) => `${item.path} | 名称：${item.name} | 描述：${item.description || "无描述"}`)
+      .join("\n");
+    const prompt =
+      `Session=${session.value.id}\n` +
+      `完整结构化剧本：${JSON.stringify(scriptData.value)}\n` +
+      `参考素材：${referenceText}\n` +
+      "调用 video_generate_keyframe 时，references 数组只能填写参考素材中的路径，" +
+      "不能填写名称或描述。" +
+      "请逐段自主制作。每段 ID 使用 segment-001 形式。" +
+      "后续段首帧使用上一段工具返回的 lastFrame。最后完成后合成最终视频。";
+    await recordEvent("video.requested", { prompt, model: "agnes-video-v2.0" });
+    await runner.run(agent, prompt, { ...traceConfig, maxTurns: 60 });
+    if (!segments.value.some((segment) => segment.url && Number(segment.actualDuration) > 0)) {
       throw new Error("视频生成未产生可播放片段，请检查 Agent 日志中的首帧或视频接口错误");
     }
     session.value.status = "completed";
