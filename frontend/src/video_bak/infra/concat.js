@@ -33,7 +33,8 @@ export async function concatMp4Segments(urls) {
         output.addSample(target.id, data, {
           duration: sample.duration,
           dts: target.time + sample.dts,
-          cts: sample.cts,
+          // cts 是显示时间戳，也必须加上当前片段的时间偏移。
+          cts: target.time + sample.cts,
           is_sync: sample.is_rap,
         });
       }

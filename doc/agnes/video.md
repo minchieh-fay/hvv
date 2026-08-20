@@ -278,7 +278,8 @@ GET https://api.agnes-ai.cn/v1/videos/<TASK_ID>
 
 ## 获取结果响应
 
-任务完成后，最终生成的视频 URL 位于 `metadata.url`。
+任务完成后，最终生成的视频 URL 通常位于响应顶层的 `url` 字段；部分兼容响应
+可能位于 `metadata.url`。接入时应兼容读取两个字段。
 
 ```json theme={null}
 {
@@ -324,6 +325,7 @@ GET https://api.agnes-ai.cn/v1/videos/<TASK_ID>
 | `size`                  | string        | 标准化后的实际输出视频分辨率。                              |
 | `metadata`              | object        | 结果附加元数据。                                     |
 | `metadata.url`          | string        | 最终生成的视频 URL，仅在 `status` 为 `completed` 时可用。   |
+| `url`                   | string        | 部分 Agnes 响应直接返回的最终视频 URL。                     |
 | `metadata.size_mapping` | object        | 尺寸标准化信息，包括请求尺寸、实际输出尺寸、宽高比和分辨率档位。             |
 | `error`                 | object / null | 任务失败时返回的错误信息。成功响应中该字段可能不存在。                  |
 
@@ -409,7 +411,7 @@ seconds = num_frames / frame_rate
 | `401` | 未授权。请检查 API Key。 |
 | `404` | 任务或视频未找到。        |
 | `500` | 服务器错误。           |
-| `503` | 服务繁忙。请稍后重试。      |
+| `503` | 服务繁忙。客户端应等待后重试。      |
 
 ## 定价
 

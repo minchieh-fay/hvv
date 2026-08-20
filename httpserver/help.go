@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // help_listenLocalhost 从起始端口开始尝试监听本机 HTTP 服务。
@@ -17,6 +19,19 @@ func help_listenLocalhost(start, tries int) (net.Listener, error) {
 		}
 	}
 	return nil, fmt.Errorf("无法监听本地 HTTP 端口 %d-%d", start, start+tries-1)
+}
+
+// help_validateAgnesVideoURL 只允许从 Agnes 官方视频域名下载生成结果。
+func help_validateAgnesVideoURL(value string) error {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
+		return fmt.Errorf("视频地址必须是 HTTPS URL")
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if !strings.HasSuffix(host, ".agnes-ai.cn") && !strings.HasSuffix(host, ".agnes-ai.space") {
+		return fmt.Errorf("视频地址不是 Agnes 官方域名")
+	}
+	return nil
 }
 
 // help_writeJSON 写入统一的 JSON 响应头和响应体。

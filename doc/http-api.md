@@ -270,7 +270,13 @@ Content-Type: application/octet-stream
 }
 ```
 
-视频生成由前端 `frontend/src/video` 模块中的 Agents SDK tools 驱动。Go HTTP 服务只负责 Session 和媒体文件持久化，不使用 Wails IPC，也不调用 `ffmpeg`。
+旧版视频流程曾由 Agents SDK tools 驱动。新版本由前端 `frontend/src/video` 直接编排
+Agnes API；Go HTTP 服务只负责 Session 和媒体文件持久化，不使用 Wails IPC，
+也不调用 `ffmpeg`。
+
+视频创建接口收到 Agnes 的 `503` 或 `Service busy: inference slot is in use`
+时，前端会等待 15、30、60 秒后最多重试 3 次。其他错误不会自动重试；用户取消
+生成时，等待也会立即结束。
 
 ### 追加视频 Agent 日志
 
@@ -349,3 +355,67 @@ s.registerChatRoutes(router)
 3. 所有响应先检查 `response.ok`，再读取错误信息。
 4. 不要让前端直接访问 `~/.hvv/media` 的本地绝对路径。
 5. 新增接口时先更新本文档，再实现前端调用。
+
+# 视频制作模块（直接硬编码流程）
+
+视频制作页面不使用 Agents SDK，前端直接调用 Agnes 视频和图片接口。后端只负责
+Session、生成片段和最终合成文件的本地持久化。所有视频固定使用 `24` fps。
+
+## 创建视频 Session
+
+`POST /api/videos/sessions`
+
+请求体只在新建视频时提交一次，之后不能通过页面修改比例：
+
+```json
+{"ratio":"16:9","orientation":"横屏"}
+```
+
+`ratio` 必须是 `16:9` 或 `9:16`。响应中的 `session.frameRate` 固定为 `24`，
+`session.segments` 由前端随后保存。
+
+## 视频列表、读取、保存和删除
+
+- `GET /api/videos/sessions?date=YYYYMMDD`：读取视频列表。
+- `GET /api/videos/sessions/{sessionID}?date=YYYYMMDD`：读取完整 Session JSON。
+- `PUT /api/videos/sessions/{sessionID}?date=YYYYMMDD`：保存完整 Session JSON。
+- `DELETE /api/videos/sessions/{sessionID}?date=YYYYMMDD`：删除 Session 及其文件。
+
+Session 中每段 `segment` 至少包含 `plot`、`obey`、`forbidden`、`firstFrame`、
+`lastFrame`、`status` 和 `progress`。`duration` 为 `0` 时不发送 `num_frames`；
+否则按 `duration * 24 + 1` 计算帧数。
+
+## 保存视频文件
+
+`POST /api/videos/sessions/{sessionID}/files?date=YYYYMMDD&path=segments/name.mp4`
+
+请求体为 `application/octet-stream`，用于保存生成的视频、尾帧或 `final.mp4`。
+响应返回 Session 内相对路径和本地 HTTP 地址。完整视频由前端使用 `mp4box.js`
+在浏览器内合成，不调用后端 ffmpeg。
+
+### 读取视频文件
+
+`GET /api/videos/sessions/{sessionID}/files?date=YYYYMMDD&path=segments/name.mp4`
+
+响应为 `application/octet-stream` 文件内容。`path` 只能指向当前 Session 内的文件，
+前端导出视频时读取该接口对应的本地媒体地址，并将内容复制到用户选择的位置，
+不会移动或修改 Session 内的原视频。
+
+Agnes 生成的视频文件可能不允许 Wails 页面跨域读取，因此使用服务端下载接口：
+
+`POST /api/videos/sessions/{sessionID}/files/remote?date=YYYYMMDD&path=segments/name.mp4`
+
+请求体：`{"url":"https://cos-platform-outputs.agnes-ai.cn/...mp4"}`。Go 只允许
+Agnes 官方视频域名，并将文件保存到 Session 后返回本地媒体路径。
+
+## 视频诊断日志
+
+前端每次创建任务、查询状态、收到限流、下载视频、提取尾帧和发生异常时，
+会调用下面的接口写入 Session 日志：
+
+`POST /api/videos/sessions/{sessionID}/logs?date=YYYYMMDD&path=logs/video.jsonl`
+
+每次 Agnes 状态查询的完整 HTTP 状态和响应也会输出到浏览器控制台，前缀为
+`[hvv video] status query response`。读取日志：
+
+`GET /api/videos/sessions/{sessionID}/logs?date=YYYYMMDD&path=logs/video.jsonl`

@@ -20,6 +20,11 @@ type VideoSessionRequest struct {
 	MaxDuration float64 `json:"maxDuration"`
 }
 
+// RemoteVideoRequest 是服务端下载 Agnes 视频结果时提交的地址。
+type RemoteVideoRequest struct {
+	URL string `json:"url"`
+}
+
 // registerVideoRoutes 注册视频制作模块的 HTTP 路由。
 func (s *Server) registerVideoRoutes(router chi.Router) {
 	router.Post("/api/videos/sessions", s.handleCreateVideoSession)
@@ -27,10 +32,72 @@ func (s *Server) registerVideoRoutes(router chi.Router) {
 	router.Delete("/api/videos/sessions/{sessionID}", s.handleDeleteVideoSession)
 	router.Get("/api/videos/sessions/{sessionID}", s.handleReadVideoSession)
 	router.Put("/api/videos/sessions/{sessionID}", s.handleSaveVideoSession)
+	router.Post("/api/videos/sessions/{sessionID}/files/remote", s.handleSaveRemoteVideo)
 	router.Post("/api/videos/sessions/{sessionID}/files", s.handleSaveVideoFile)
 	router.Get("/api/videos/sessions/{sessionID}/files", s.handleReadVideoFile)
 	router.Post("/api/videos/sessions/{sessionID}/logs", s.handleAppendVideoLog)
 	router.Get("/api/videos/sessions/{sessionID}/logs", s.handleReadVideoLog)
+}
+
+// handleSaveRemoteVideo 由 Go 下载 Agnes 视频，绕过远程视频服务器的浏览器跨域限制。
+func (s *Server) handleSaveRemoteVideo(writer http.ResponseWriter, request *http.Request) {
+	var payload RemoteVideoRequest
+	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+		help_writeJSONError(writer, fmt.Errorf("视频地址格式错误: %w", err), http.StatusBadRequest)
+		return
+	}
+	if err := help_validateAgnesVideoURL(payload.URL); err != nil {
+		help_writeJSONError(writer, err, http.StatusBadRequest)
+		return
+	}
+	date := request.URL.Query().Get("date")
+	if date == "" {
+		date = time.Now().Format("20060102")
+	}
+	path := strings.TrimSpace(request.URL.Query().Get("path"))
+	if path == "" {
+		help_writeJSONError(writer, fmt.Errorf("视频媒体相对路径不能为空"), http.StatusBadRequest)
+		return
+	}
+	client := &http.Client{
+		Timeout: 10 * time.Minute,
+		CheckRedirect: func(next *http.Request, _ []*http.Request) error {
+			return help_validateAgnesVideoURL(next.URL.String())
+		},
+	}
+	response, err := client.Get(payload.URL)
+	if err != nil {
+		help_writeJSONError(writer, fmt.Errorf("下载 Agnes 视频失败: %w", err), http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		help_writeJSONError(
+			writer,
+			fmt.Errorf("下载 Agnes 视频返回 HTTP %d", response.StatusCode),
+			http.StatusBadGateway,
+		)
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, 256<<20))
+	if err != nil {
+		help_writeJSONError(writer, fmt.Errorf("读取 Agnes 视频失败: %w", err), http.StatusBadGateway)
+		return
+	}
+	if len(data) == 0 {
+		help_writeJSONError(writer, fmt.Errorf("Agnes 视频内容为空"), http.StatusBadGateway)
+		return
+	}
+	file, err := s.mediaService.SaveVideoFile(date, chi.URLParam(request, "sessionID"), path, data)
+	if err != nil {
+		help_writeJSONError(writer, err, http.StatusBadRequest)
+		return
+	}
+	help_writeJSON(writer, map[string]any{
+		"path": file.Path,
+		"url":  "/media/" + file.Path,
+		"size": len(data),
+	})
 }
 
 // handleAppendVideoLog 追加一条视频 Agent 日志事件。
@@ -127,6 +194,13 @@ func (s *Server) handleCreateVideoSession(writer http.ResponseWriter, request *h
 		help_writeJSONError(writer, fmt.Errorf("视频比例必须是 16:9 或 9:16"), http.StatusBadRequest)
 		return
 	}
+	if payload.Orientation == "" {
+		if payload.Ratio == "16:9" {
+			payload.Orientation = "横屏"
+		} else {
+			payload.Orientation = "竖屏"
+		}
+	}
 	invalidDuration := payload.MinDuration < 0 || payload.MaxDuration < 0
 	invalidRange := payload.MaxDuration > 0 && payload.MinDuration > payload.MaxDuration
 	if invalidDuration || invalidRange {
@@ -138,7 +212,8 @@ func (s *Server) handleCreateVideoSession(writer http.ResponseWriter, request *h
 	session := map[string]any{
 		"id": sessionID, "date": date, "orientation": payload.Orientation, "ratio": payload.Ratio,
 		"content": payload.Content, "minDuration": payload.MinDuration, "maxDuration": payload.MaxDuration,
-		"status": "draft", "createdAt": time.Now().Format(time.RFC3339), "updatedAt": time.Now().Format(time.RFC3339),
+		"frameRate": 24,
+		"status":    "draft", "createdAt": time.Now().Format(time.RFC3339), "updatedAt": time.Now().Format(time.RFC3339),
 	}
 	data, err := json.MarshalIndent(session, "", "  ")
 	if err != nil {
