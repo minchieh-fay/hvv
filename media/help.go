@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 )
 
 var help_datePattern = regexp.MustCompile(`^\d{8}$`)
@@ -28,6 +30,40 @@ func help_decodeDataURL(value string) ([]byte, string, error) {
 
 // help_validDate 校验媒体日期目录名称。
 func help_validDate(value string) bool { return help_datePattern.MatchString(value) }
+
+// help_sortFilesNewestFirst 按文件修改时间将图片按最新优先排序。
+func help_sortFilesNewestFirst(files []File) {
+	sort.SliceStable(files, func(left, right int) bool {
+		return help_fileTime(files[left]).After(help_fileTime(files[right]))
+	})
+}
+
+// help_fileTime 从图片路径中的时间部分提取创建时间，无法提取时返回零值。
+func help_fileTime(file File) time.Time {
+	name := filepath.Base(file.Path)
+	name = strings.TrimPrefix(name, "generated-")
+	name = strings.TrimSuffix(name, ".image.json")
+	parts := strings.SplitN(name, "-", 2)
+	if len(parts) == 0 {
+		return time.Time{}
+	}
+	value, err := time.Parse("150405.000", parts[0])
+	if err != nil {
+		return time.Time{}
+	}
+	return value
+}
+
+// help_numberGeneratedFiles 按生成时间从早到晚给网络图片分配编号。
+func help_numberGeneratedFiles(files []File) {
+	number := 1
+	for index := len(files) - 1; index >= 0; index-- {
+		if files[index].Generated {
+			files[index].Number = number
+			number++
+		}
+	}
+}
 
 // help_isInside 判断目标路径是否位于媒体根目录内。
 func help_isInside(root, target string) bool {

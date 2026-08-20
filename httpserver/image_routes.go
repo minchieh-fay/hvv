@@ -18,6 +18,7 @@ type ImageReferenceRequest struct {
 // ImageResultRequest 是前端保存图片生成结果时提交的请求体。
 type ImageResultRequest struct {
 	DataURL string `json:"dataURL"`
+	URL     string `json:"url"`
 }
 
 // registerImageRoutes 注册图片制作模块的 HTTP 路由。
@@ -42,7 +43,9 @@ func (s *Server) handleListImageReferences(writer http.ResponseWriter, request *
 		return
 	}
 	for index := range files {
-		files[index].URL = "/media/" + files[index].Path
+		if !files[index].Generated {
+			files[index].URL = "/media/" + files[index].Path
+		}
 	}
 	help_writeJSON(writer, files)
 }
@@ -76,11 +79,11 @@ func (s *Server) handleDeleteImageReference(writer http.ResponseWriter, request 
 // handleSaveImageResult 将 Agent 工具得到的图片结果保存到本地。
 func (s *Server) handleSaveImageResult(writer http.ResponseWriter, request *http.Request) {
 	var payload ImageResultRequest
-	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil || strings.TrimSpace(payload.DataURL) == "" {
+	if err := json.NewDecoder(request.Body).Decode(&payload); err != nil || strings.TrimSpace(payload.URL) == "" {
 		help_writeJSONError(writer, errors.New("图片结果不能为空"), http.StatusBadRequest)
 		return
 	}
-	file, err := s.mediaService.SaveDataURL(payload.DataURL, "")
+	file, err := s.mediaService.SaveRemoteImage(strings.TrimSpace(payload.URL))
 	if err != nil {
 		help_writeJSONError(writer, err, http.StatusBadRequest)
 		return

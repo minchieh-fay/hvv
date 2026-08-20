@@ -38,6 +38,8 @@ func main() {
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
+			// 提供嵌入资源，使 wails dev 能切换到 Vite 开发服务器。
+			Assets:  assets,
 			Handler: httpService.RedirectHandler(),
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},

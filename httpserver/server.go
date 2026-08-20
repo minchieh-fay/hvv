@@ -53,11 +53,13 @@ func New(settings *config.Service, assets embed.FS) (*Server, error) {
 		_ = listener.Close()
 		return nil, fmt.Errorf("清理媒体目录失败: %w", err)
 	}
-	publicTunnel, err := tunnel.Start("http://" + listener.Addr().String())
-	if err != nil {
-		_ = listener.Close()
-		return nil, err
-	}
+	var publicTunnel *tunnel.Service
+	// 暂时停用cf
+	// publicTunnel, err = tunnel.Start("http://" + listener.Addr().String())
+	// if err != nil {
+	// 	_ = listener.Close()
+	// 	return nil, err
+	// }
 	service := &Server{
 		settings:      newConfigService(settings),
 		assets:        dist,
@@ -82,7 +84,9 @@ func (s *Server) Start() error {
 
 // Close 停止本地 HTTP 服务并释放监听端口。
 func (s *Server) Close() error {
-	s.tunnelService.Close()
+	if s.tunnelService != nil {
+		s.tunnelService.Close()
+	}
 	return s.server.Close()
 }
 
@@ -97,8 +101,13 @@ func (s *Server) cleanupLoop() {
 	}
 }
 
-// PublicURL 返回 Cloudflare Quick Tunnel 公网地址。
-func (s *Server) PublicURL() string { return s.tunnelService.URL() }
+// PublicURL 返回 Cloudflare Quick Tunnel 公网地址，隧道停用时返回空字符串。
+func (s *Server) PublicURL() string {
+	if s.tunnelService == nil {
+		return ""
+	}
+	return s.tunnelService.URL()
+}
 
 // URL 返回本地 HTTP 服务地址，供 Wails 初始页面跳转使用。
 func (s *Server) URL() string {

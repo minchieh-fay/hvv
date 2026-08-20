@@ -125,13 +125,13 @@ GET /media/<相对媒体路径>
 
 ## 图片制作接口
 
-### 获取公网媒体地址
+### 图片状态
 
 ```http
 GET /api/images/status
 ```
 
-响应：`{"publicURL":"https://xxxx.trycloudflare.com"}`。
+该接口为兼容旧版客户端保留，不再启动 Cloudflare 公网隧道，响应中的 `publicURL` 为空。
 
 ### 查询参考图
 
@@ -139,7 +139,8 @@ GET /api/images/status
 GET /api/images/references?date=20260818
 ```
 
-日期为空时默认查询今天。响应是图片数组，每项包含 `path`、`url` 和 `date`。
+日期为空时默认查询今天。响应按最新创建时间倒序排列，每项包含 `path`、`url` 和 `date`。
+Agnes 生成的网络图片额外包含 `generated: true` 和从 1 开始的 `number`；本地粘贴或导入的图片没有编号。
 
 ### 保存参考图
 
@@ -165,13 +166,13 @@ POST /api/images/results
 Content-Type: application/json
 ```
 
-请求体中的 `dataURL` 是 TS 侧 Agent 图片工具调用 Agnes 后得到的 Base64 Data URI：
+请求体中的 `url` 是 TS 侧 Agent 图片工具调用 Agnes 后得到的官方图片地址：
 
 ```json
-{"dataURL":"data:image/png;base64,..."}
+{"url":"https://官方图片地址/..."}
 ```
 
-图片生成由前端 Agents SDK 驱动，Agent 工具使用 `/api/settings`、`/api/images/status` 和参考图接口完成 Agnes 调用；Go 只负责把最终结果保存到当天的 `img` 目录。
+图片生成由前端 Agents SDK 驱动。粘贴或导入的本地图片会在浏览器中转换为 Base64 Data URI，Agnes 生成的网络图片则直接使用官方图片地址；Go 负责保存生成记录到当天的 `img` 目录。
 
 ## 视频制作接口
 

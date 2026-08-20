@@ -14,9 +14,11 @@ const retentionDays = 10
 
 // File 描述一个可通过本地 HTTP 服务访问的媒体文件。
 type File struct {
-	Path string `json:"path"`
-	URL  string `json:"url"`
-	Date string `json:"date"`
+	Path      string `json:"path"`
+	URL       string `json:"url"`
+	Date      string `json:"date"`
+	Generated bool   `json:"generated,omitempty"`
+	Number    int    `json:"number,omitempty"`
 }
 
 // Service 负责管理 hvv 的本地媒体目录。
@@ -82,10 +84,48 @@ func (s *Service) List(date string) ([]File, error) {
 		if entry.IsDir() {
 			continue
 		}
+		if strings.HasSuffix(entry.Name(), ".image.json") {
+			data, readErr := os.ReadFile(filepath.Join(dir, entry.Name()))
+			if readErr != nil {
+				continue
+			}
+			var file File
+			if jsonErr := json.Unmarshal(data, &file); jsonErr != nil || !file.Generated {
+				continue
+			}
+			file.Path = filepath.ToSlash(filepath.Join(date, "img", entry.Name()))
+			file.Date = date
+			files = append(files, file)
+			continue
+		}
 		path := filepath.Join(date, "img", entry.Name())
 		files = append(files, File{Path: path, Date: date})
 	}
+	help_sortFilesNewestFirst(files)
+	help_numberGeneratedFiles(files)
 	return files, nil
+}
+
+// SaveRemoteImage 保存 Agnes 官方图片地址，供图片库和后续图生图使用。
+func (s *Service) SaveRemoteImage(remoteURL string) (File, error) {
+	date := time.Now().Format("20060102")
+	dir := filepath.Join(s.root, date, "img")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return File{}, err
+	}
+	name := fmt.Sprintf("generated-%s-%04d.image.json", time.Now().Format("150405.000"),
+		time.Now().UnixNano()%10000)
+	file := File{
+		Path: filepath.Join(date, "img", name), URL: remoteURL, Date: date, Generated: true,
+	}
+	data, err := json.Marshal(file)
+	if err != nil {
+		return File{}, err
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), data, 0600); err != nil {
+		return File{}, err
+	}
+	return file, nil
 }
 
 // CreateVideoSession 创建视频 Session 目录并保存初始配置。

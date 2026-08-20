@@ -13,7 +13,7 @@ const date = ref(new Date().toISOString().slice(0, 10).replaceAll('-', ''));
 const references = ref([]);
 const selected = ref([]);
 const size = ref('1K');
-const ratio = ref('1:1');
+const ratio = ref('9:16');
 const loading = ref(false);
 const elapsedSeconds = ref(0);
 const fileInput = ref(null);
@@ -29,8 +29,8 @@ function createImageAgent(context, signal, generated, requestedSize, requestedRa
         description: '调用 Agnes Image 2.1 Flash 生成图片。用户需要制作图片时必须调用此工具。',
         parameters: z.object({prompt: z.string(), references: z.array(z.string()).default([])}),
         execute: async input => {
-            const dataURL = await callAgnesImageTool({...input, size: requestedSize, ratio: requestedRatio}, context, signal);
-            generated.value = await saveImageResult(dataURL);
+            const imageURL = await callAgnesImageTool({...input, size: requestedSize, ratio: requestedRatio}, context, signal);
+            generated.value = await saveImageResult(imageURL);
             return JSON.stringify({url: generated.value.url, path: generated.value.path});
         },
     });
@@ -121,7 +121,7 @@ async function generate() {
     const startedAt = Date.now();
     timer = window.setInterval(() => { elapsedSeconds.value = Math.floor((Date.now() - startedAt) / 1000); }, 1000);
     try {
-        const context = await loadImageToolContext();
+        const context = {...await loadImageToolContext(), references: references.value};
         const generated = ref(null);
         const controller = new AbortController();
         const {agent, runner} = createImageAgent(context, controller.signal, generated, size.value, ratio.value);
@@ -147,12 +147,12 @@ onUnmounted(() => { window.removeEventListener('paste', handlePaste); if (timer)
       <main class="image-editor">
         <div class="field-label">描述</div>
         <el-input v-model="prompt" type="textarea" :rows="11" resize="none" placeholder="万里长城，天空下着雨，奥特曼和孙悟空在打架……" />
-        <div class="image-options"><label>尺寸 <el-select v-model="size"><el-option v-for="item in ['1K', '2K', '3K', '4K']" :key="item" :label="item" :value="item" /></el-select></label><label>比例 <el-select v-model="ratio"><el-option v-for="item in ['1:1', '3:4', '4:3', '16:9', '9:16', '2:3', '3:2', '21:9']" :key="item" :label="item" :value="item" /></el-select></label></div>
+        <div class="image-options"><label>尺寸 <el-select v-model="size"><el-option v-for="item in ['1K', '2K', '3K', '4K']" :key="item" :label="item" :value="item" /></el-select></label><label>比例 <el-select v-model="ratio"><el-option v-for="item in ['9:16', '16:9', '1:1', '3:4', '4:3', '2:3', '3:2', '21:9']" :key="item" :label="item" :value="item" /></el-select></label></div>
         <div class="reference-heading"><span>参考图 <small>{{ selected.length }} 张已选</small></span><el-button text @click="fileInput.click()"><el-icon><Upload /></el-icon>导入图片</el-button><input ref="fileInput" hidden type="file" accept="image/*" @change="readFile($event.target.files[0])" /></div>
         <p class="paste-hint">可直接 Ctrl/Command + V 粘贴截图，参考图不是必填项。</p>
         <el-button class="generate-button" type="primary" :loading="loading" :disabled="!prompt.trim()" @click="generate"><el-icon><Picture /></el-icon>{{ loading ? `正在生成 (${elapsedSeconds}秒)` : '开始制作' }}</el-button>
       </main>
-      <aside class="reference-panel"><div class="reference-date"><span>图片库</span><el-date-picker v-model="date" value-format="YYYYMMDD" type="date" :clearable="false" @change="loadReferences" /></div><div v-if="!references.length" class="reference-empty"><el-icon><FolderOpened /></el-icon><p>{{ today ? '今天还没有图片' : '这一天没有图片' }}</p></div><div v-else class="reference-grid"><button v-for="file in references" :key="file.path" class="reference-item" :class="{selected: selected.includes(file.path)}" type="button" @click="toggleReference(file)"><img :src="file.url" alt="图片库图片" /><span v-if="selected.includes(file.path)">已选</span><i class="preview-button" title="查看原图" aria-label="查看原图" @click.stop="previewReference(file)"><el-icon><ZoomIn /></el-icon></i><i class="delete-button" title="删除图片" aria-label="删除图片" @click.stop="removeReference(file)"><el-icon><Delete /></el-icon></i></button></div></aside>
+      <aside class="reference-panel"><div class="reference-date"><span>图片库</span><el-date-picker v-model="date" value-format="YYYYMMDD" type="date" :clearable="false" @change="loadReferences" /></div><div v-if="!references.length" class="reference-empty"><el-icon><FolderOpened /></el-icon><p>{{ today ? '今天还没有图片' : '这一天没有图片' }}</p></div><div v-else class="reference-grid"><button v-for="file in references" :key="file.path" class="reference-item" :class="{selected: selected.includes(file.path)}" type="button" @click="toggleReference(file)"><img :src="file.url" alt="图片库图片" /><span v-if="file.number" class="image-number">#{{ file.number }}</span><span v-if="selected.includes(file.path)" class="selection-mark">已选</span><i class="preview-button" title="查看原图" aria-label="查看原图" @click.stop="previewReference(file)"><el-icon><ZoomIn /></el-icon></i><i class="delete-button" title="删除图片" aria-label="删除图片" @click.stop="removeReference(file)"><el-icon><Delete /></el-icon></i></button></div></aside>
     </div>
     <el-dialog v-model="previewVisible" class="image-preview-dialog" width="96vw" top="2vh" :show-close="true"><div class="preview-stage"><button class="preview-nav preview-prev" type="button" title="上一张" aria-label="上一张" @click="previewPrevious"><el-icon><ArrowLeft /></el-icon></button><img v-if="previewFile" class="original-preview" :src="previewFile.url" alt="原图预览" /><div class="preview-actions"><button type="button" title="下载图片" aria-label="下载图片" @click="downloadPreview"><el-icon><Download /></el-icon></button><button type="button" title="删除图片" aria-label="删除图片" @click="removeReference(previewFile)"><el-icon><Delete /></el-icon></button></div><button class="preview-nav preview-next" type="button" title="下一张" aria-label="下一张" @click="previewNext"><el-icon><ArrowRight /></el-icon></button></div></el-dialog>
   </section>

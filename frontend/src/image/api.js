@@ -25,30 +25,52 @@ export async function deleteReference(path) {
     return result;
 }
 
-// 读取 Agent 工具调用 Agnes 所需的设置和本地媒体公网地址。
+// 读取 Agent 工具调用 Agnes 所需的设置。
 export async function loadImageToolContext() {
-    const [settingsResponse, statusResponse] = await Promise.all([fetch('/api/settings'), fetch('/api/images/status')]);
+    const settingsResponse = await fetch('/api/settings');
     const settings = await settingsResponse.json();
-    const status = await statusResponse.json();
-    if (!settingsResponse.ok || !statusResponse.ok) throw new Error('读取图片工具配置失败');
-    return {settings, publicURL: status.publicURL};
+    if (!settingsResponse.ok) throw new Error('读取图片工具配置失败');
+    return {settings};
+}
+
+// 将本地图片读取为可直接发送给 Agnes 的 Data URI。
+async function readImageDataURL(url) {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+// 根据图片来源准备 Agnes 图生图的输入内容。
+async function buildImageInputs(paths, context) {
+    return await Promise.all(paths.map(async path => {
+        const reference = context.references.find(item => item.path === path);
+        if (!reference) throw new Error('参考图不存在');
+        return reference.generated ? reference.url : await readImageDataURL(reference.url);
+    }));
 }
 
 // 调用 Agnes 官方图片生成 API，作为 Agent 的图片生成工具实现。
 export async function callAgnesImageTool(payload, context, signal) {
     const references = payload.references || [];
-    const requestBody = {...payload, model: 'agnes-image-2.1-flash', references: undefined, extra_body: {response_format: 'b64_json', ...(references.length ? {image: references.map(path => `${context.publicURL}/media/${path}`)} : {})}};
+    const images = await buildImageInputs(references, context);
+    const requestBody = {...payload, model: 'agnes-image-2.1-flash', references: undefined,
+        extra_body: {response_format: 'url', ...(images.length ? {image: images} : {})}};
     const response = await fetch(`${context.settings.baseURL}/images/generations`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${context.settings.apiKey}`}, body: JSON.stringify(requestBody), signal});
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '图片生成失败');
     const item = result.data?.[0];
-    if (!item?.b64_json) throw new Error('Agnes 没有返回 Base64 图片');
-    return `data:image/png;base64,${item.b64_json}`;
+    if (!item?.url) throw new Error('Agnes 没有返回图片地址');
+    return item.url;
 }
 
-// 将 Agent 工具生成的图片交给 Go 保存到本地媒体目录。
-export async function saveImageResult(dataURL) {
-    const response = await fetch('/api/images/results', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({dataURL})});
+// 将 Agent 工具生成的官方图片地址交给 Go 保存到图片库。
+export async function saveImageResult(url) {
+    const response = await fetch('/api/images/results', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url})});
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '保存生成图片失败');
     return result;
