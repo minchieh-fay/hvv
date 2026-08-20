@@ -1,4 +1,5 @@
 import { Agent, OpenAIProvider, Runner, setOpenAIAPI, tool } from "@openai/agents";
+import OpenAI from "openai";
 import { z } from "zod";
 import { help_toolError } from "../tools/help";
 
