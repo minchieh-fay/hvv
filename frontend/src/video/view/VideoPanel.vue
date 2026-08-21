@@ -62,6 +62,7 @@ const secondaryVideoPlayer = ref(null);
 const playerSlots = ref(["", ""]);
 const activePlayerSlot = ref(0);
 const thumbnailURLs = ref([]);
+const finalVideoCacheTime = ref(Date.now());
 const context = ref(null);
 const abortController = ref(null);
 const activeSegment = computed(
@@ -75,7 +76,7 @@ const videoURLs = computed(() =>
 );
 const finalVideoURL = computed(() =>
   session.value?.finalVideoPath
-    ? sessionMediaURL(session.value.finalVideoPath)
+    ? `${sessionMediaURL(session.value.finalVideoPath)}?t=${finalVideoCacheTime.value}`
     : "",
 );
 const obeyPlaceholders = [
@@ -186,6 +187,7 @@ async function openSession(item) {
   loading.value = true;
   try {
     session.value = await loadVideoSession(item);
+    finalVideoCacheTime.value = Date.now();
     session.value.segments ||= [];
     selectedSegment.value = Math.max(0, session.value.segments.length - 1);
     view.value = "editor";
@@ -574,6 +576,11 @@ async function playNext() {
 // 在浏览器中用 mp4box 合成全部已完成片段。
 async function mergeVideos() {
   if (!videoURLs.value.length) return;
+  const segments = session.value?.segments || [];
+  if (segments.some((item) => !item.videoPath)) {
+    ElMessage.warning("请先完成全部视频片段，再合成完整视频");
+    return;
+  }
   loading.value = true;
   try {
     await writeVideoLog("video.concat.started", {
@@ -588,6 +595,7 @@ async function mergeVideos() {
     });
     const saved = await saveVideoFile(session.value, "final.mp4", blob);
     session.value.finalVideoPath = saved.path;
+    finalVideoCacheTime.value = Date.now();
     session.value.status = "completed";
     await persistSession();
     ElMessage.success("完整视频已合成");
@@ -933,7 +941,7 @@ async function backToList() {
                   >合成完整视频</el-button
                 ><a
                   v-if="session.finalVideoPath"
-                  :href="sessionMediaURL(session.finalVideoPath)"
+                  :href="finalVideoURL"
                   target="_blank"
                   >打开完整视频</a
                 >
