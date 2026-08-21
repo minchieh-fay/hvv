@@ -13,7 +13,7 @@ const date = ref(new Date().toISOString().slice(0, 10).replaceAll('-', ''));
 const references = ref([]);
 const selected = ref([]);
 const size = ref('1K');
-const ratio = ref('9:16');
+const ratio = ref('3:4');
 const loading = ref(false);
 const elapsedSeconds = ref(0);
 const fileInput = ref(null);
@@ -147,7 +147,7 @@ onUnmounted(() => { window.removeEventListener('paste', handlePaste); if (timer)
       <main class="image-editor">
         <div class="field-label">描述</div>
         <el-input v-model="prompt" type="textarea" :rows="11" resize="none" placeholder="万里长城，天空下着雨，奥特曼和孙悟空在打架……" />
-        <div class="image-options"><label>尺寸 <el-select v-model="size"><el-option v-for="item in ['1K', '2K', '3K', '4K']" :key="item" :label="item" :value="item" /></el-select></label><label>比例 <el-select v-model="ratio"><el-option v-for="item in ['9:16', '16:9', '1:1', '3:4', '4:3', '2:3', '3:2', '21:9']" :key="item" :label="item" :value="item" /></el-select></label></div>
+        <div class="image-options"><label>尺寸 <el-select v-model="size"><el-option v-for="item in ['1K', '2K', '3K', '4K']" :key="item" :label="item" :value="item" /></el-select></label><label>比例 <el-select v-model="ratio"><el-option v-for="item in ['3:4', '4:3', '16:9', '9:16', '1:1', '21:9']" :key="item" :label="item" :value="item" /></el-select></label></div>
         <div class="reference-heading"><span>参考图 <small>{{ selected.length }} 张已选</small></span><el-button text @click="fileInput.click()"><el-icon><Upload /></el-icon>导入图片</el-button><input ref="fileInput" hidden type="file" accept="image/*" @change="readFile($event.target.files[0])" /></div>
         <p class="paste-hint">可直接 Ctrl/Command + V 粘贴截图，参考图不是必填项。</p>
         <el-button class="generate-button" type="primary" :loading="loading" :disabled="!prompt.trim()" @click="generate"><el-icon><Picture /></el-icon>{{ loading ? `正在生成 (${elapsedSeconds}秒)` : '开始制作' }}</el-button>

@@ -1,3 +1,5 @@
+import {help_resolveImageSize} from './help';
+
 // 读取指定日期的本地参考图片列表。
 export async function listReferences(date) {
     const response = await fetch(`/api/images/references?date=${encodeURIComponent(date)}`);
@@ -58,7 +60,8 @@ async function buildImageInputs(paths, context) {
 export async function callAgnesImageTool(payload, context, signal) {
     const references = payload.references || [];
     const images = await buildImageInputs(references, context);
-    const requestBody = {...payload, model: 'agnes-image-2.1-flash', references: undefined,
+    const requestBody = {...payload, model: 'agnes-image-2.1-flash',
+        size: help_resolveImageSize(payload.size, payload.ratio), references: undefined,
         extra_body: {response_format: 'url', ...(images.length ? {image: images} : {})}};
     const response = await fetch(`${context.settings.baseURL}/images/generations`, {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${context.settings.apiKey}`}, body: JSON.stringify(requestBody), signal});
     const result = await response.json();

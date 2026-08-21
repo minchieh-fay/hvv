@@ -2,7 +2,9 @@ package media
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -12,6 +14,34 @@ import (
 
 var help_datePattern = regexp.MustCompile(`^\d{8}$`)
 var help_videoIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
+
+// help_listVideoSessions 读取指定日期目录下的全部视频 Session。
+func help_listVideoSessions(root, date string) ([]map[string]any, error) {
+	dir := filepath.Join(root, date, "video")
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return []map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sessions := make([]map[string]any, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() || !help_videoIDPattern.MatchString(entry.Name()) {
+			continue
+		}
+		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name(), "session.json"))
+		if readErr != nil {
+			continue
+		}
+		var session map[string]any
+		if jsonErr := json.Unmarshal(data, &session); jsonErr != nil {
+			continue
+		}
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
 
 // help_decodeDataURL 解码图片 Data URI 并推断文件扩展名。
 func help_decodeDataURL(value string) ([]byte, string, error) {

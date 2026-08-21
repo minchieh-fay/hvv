@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -161,37 +162,34 @@ func (s *Service) ReadVideoSession(date, sessionID string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(s.root, date, "video", sessionID, "session.json"))
 }
 
-// ListVideoSessions 返回指定日期下的视频 Session 配置列表。
+// ListVideoSessions 返回指定日期或全部日期的视频 Session 配置列表。
 func (s *Service) ListVideoSessions(date string) ([]map[string]any, error) {
-	if date == "" {
-		date = time.Now().Format("20060102")
+	if date != "" {
+		if !help_validDate(date) {
+			return nil, fmt.Errorf("日期格式错误")
+		}
+		return help_listVideoSessions(s.root, date)
 	}
-	if !help_validDate(date) {
-		return nil, fmt.Errorf("日期格式错误")
-	}
-	dir := filepath.Join(s.root, date, "video")
-	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return []map[string]any{}, nil
-	}
+	dateEntries, err := os.ReadDir(s.root)
 	if err != nil {
 		return nil, err
 	}
-	sessions := make([]map[string]any, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() || !help_videoIDPattern.MatchString(entry.Name()) {
+	sessions := make([]map[string]any, 0)
+	for _, entry := range dateEntries {
+		if !entry.IsDir() || !help_validDate(entry.Name()) {
 			continue
 		}
-		data, readErr := os.ReadFile(filepath.Join(dir, entry.Name(), "session.json"))
-		if readErr != nil {
-			continue
+		items, listErr := help_listVideoSessions(s.root, entry.Name())
+		if listErr != nil {
+			return nil, listErr
 		}
-		var session map[string]any
-		if jsonErr := json.Unmarshal(data, &session); jsonErr != nil {
-			continue
-		}
-		sessions = append(sessions, session)
+		sessions = append(sessions, items...)
 	}
+	sort.SliceStable(sessions, func(left, right int) bool {
+		leftTime, _ := sessions[left]["createdAt"].(string)
+		rightTime, _ := sessions[right]["createdAt"].(string)
+		return leftTime > rightTime
+	})
 	return sessions, nil
 }
 

@@ -217,12 +217,22 @@ func (s *Server) handleCreateVideoSession(writer http.ResponseWriter, request *h
 		help_writeJSONError(writer, fmt.Errorf("视频配置格式错误: %w", err), http.StatusBadRequest)
 		return
 	}
-	if payload.Ratio != "16:9" && payload.Ratio != "9:16" {
-		help_writeJSONError(writer, fmt.Errorf("视频比例必须是 16:9 或 9:16"), http.StatusBadRequest)
+	validRatios := map[string]bool{
+		"16:9": true,
+		"9:16": true,
+		"3:4":  true,
+		"4:3":  true,
+	}
+	if !validRatios[payload.Ratio] {
+		help_writeJSONError(
+			writer,
+			fmt.Errorf("视频比例必须是 3:4、4:3、16:9 或 9:16"),
+			http.StatusBadRequest,
+		)
 		return
 	}
 	if payload.Orientation == "" {
-		if payload.Ratio == "16:9" {
+		if payload.Ratio == "16:9" || payload.Ratio == "4:3" {
 			payload.Orientation = "横屏"
 		} else {
 			payload.Orientation = "竖屏"

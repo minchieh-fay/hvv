@@ -201,7 +201,7 @@ Content-Type: application/json
 }
 ```
 
-`ratio` 目前只允许 `16:9` 或 `9:16`。时长为 `0` 表示交给 Agent 根据内容决定。
+`ratio` 目前支持 `3:4`、`4:3`、`16:9` 和 `9:16`。时长为 `0` 表示交给 Agent 根据内容决定。
 
 响应示例：
 
@@ -233,7 +233,8 @@ DELETE /api/videos/sessions/{session-id}?date=20260819
 
 删除指定 Session 目录下的剧本、日志、关键帧、视频片段和最终视频。删除前由前端弹出确认框。
 
-日期为空时默认查询当天。响应为 Session JSON 数组，用于视频制作列表页面。
+日期为空时查询所有日期；传入日期时只查询指定日期。响应为 Session JSON 数组，
+用于视频制作列表页面。
 
 ### 获取视频 Session
 
@@ -384,7 +385,7 @@ Session、生成片段和最终合成文件的本地持久化。所有视频固�
 {"ratio":"16:9","orientation":"横屏"}
 ```
 
-`ratio` 必须是 `16:9` 或 `9:16`。响应中的 `session.frameRate` 固定为 `24`，
+`ratio` 必须是 `3:4`、`4:3`、`16:9` 或 `9:16`。响应中的 `session.frameRate` 固定为 `24`，
 `session.segments` 由前端随后保存。
 
 ## 视频列表、读取、保存和删除

@@ -50,7 +50,7 @@ const session = ref(null);
 const references = ref([]);
 const referenceDate = ref(help_today());
 const picker = ref({ open: false, target: "first" });
-const newVideo = ref({ open: false, ratio: "16:9" });
+const newVideo = ref({ open: false, ratio: "3:4" });
 const loading = ref(false);
 const generating = ref(false);
 const progress = ref(0);
@@ -159,7 +159,7 @@ async function writeVideoLog(event, payload = {}) {
 
 // 打开一次性的视频比例配置页面。
 function openNewVideo() {
-  newVideo.value = { open: true, ratio: "16:9" };
+  newVideo.value = { open: true, ratio: "3:4" };
 }
 
 // 创建 Session 并进入第一段视频编辑页面。
@@ -471,6 +471,7 @@ async function publishContinuityFrame(segment) {
   });
   segment.extractedFrame = await publishFrame(
     await help_blobToDataURL(frame),
+    session.value.ratio,
     context.value,
     abortController.value.signal,
   );
@@ -651,7 +652,8 @@ async function backToList() {
           <div class="video-list-copy">
             <strong
               >{{
-                item.orientation || (item.ratio === "16:9" ? "横屏" : "竖屏")
+                item.orientation ||
+                (["16:9", "4:3"].includes(item.ratio) ? "横屏" : "竖屏")
               }}
               视频</strong
             ><small
@@ -965,6 +967,8 @@ async function backToList() {
     <el-dialog v-model="newVideo.open" title="制作新视频" width="420px"
       ><p class="dialog-hint">该配置只在新建时设置，之后不能修改。</p>
       <el-radio-group v-model="newVideo.ratio"
+        ><el-radio-button label="3:4">竖屏 3:4</el-radio-button
+        ><el-radio-button label="4:3">横屏 4:3</el-radio-button
         ><el-radio-button label="16:9">横屏 16:9</el-radio-button
         ><el-radio-button label="9:16"
           >竖屏 9:16</el-radio-button

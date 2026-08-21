@@ -2,7 +2,7 @@ import {
   help_describeError,
   help_isVideoServiceBusy,
   help_mediaURL,
-  help_today,
+  help_videoSize,
   help_videoRetryDelay,
   help_wait,
   help_waitCountdown,
@@ -14,14 +14,15 @@ export async function createVideoSession(ratio) {
     method: "POST",
     body: JSON.stringify({
       ratio,
-      orientation: ratio === "16:9" ? "横屏" : "竖屏",
+      orientation: ["16:9", "4:3"].includes(ratio) ? "横屏" : "竖屏",
     }),
   });
 }
 
 // 读取视频制作列表。
-export async function listVideoSessions(date = help_today()) {
-  return requestJSON(`/api/videos/sessions?date=${encodeURIComponent(date)}`);
+export async function listVideoSessions(date) {
+  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  return requestJSON(`/api/videos/sessions${query}`);
 }
 
 // 读取单个视频 Session。
@@ -122,8 +123,8 @@ export async function appendVideoLog(session, event, payload = {}) {
   }
 }
 
-// 调用 Agnes 图片模型，把上一段尾帧转换成公网图片 URL。
-export async function publishFrame(dataURL, context, signal) {
+// 调用 Agnes 图片模型，按视频比例把上一段尾帧转换成公网图片 URL。
+export async function publishFrame(dataURL, ratio, context, signal) {
   const response = await fetch(
     `${context.settings.baseURL}/images/generations`,
     {
@@ -134,7 +135,11 @@ export async function publishFrame(dataURL, context, signal) {
       },
       body: JSON.stringify({
         model: "agnes-image-2.1-flash",
-        prompt: "Keep the image exactly as it is",
+        prompt:
+          "Keep the image exactly as it is. Do not crop, stretch, reframe, " +
+          "or change the subject, background, clothing, or composition.",
+        size: "1K",
+        ratio,
         extra_body: { response_format: "url", image: [dataURL] },
       }),
       signal,
@@ -156,8 +161,7 @@ export async function createAgnesVideo(payload, context, signal, onRetry) {
     model: "agnes-video-v2.0",
     prompt: payload.prompt,
     negative_prompt: payload.negativePrompt,
-    width: payload.ratio === "16:9" ? 1152 : 768,
-    height: payload.ratio === "16:9" ? 768 : 1152,
+    ...help_videoSize(payload.ratio),
     frame_rate: 24,
     ...(payload.numFrames ? { num_frames: payload.numFrames } : {}),
   };

@@ -35,6 +35,17 @@ export function help_durationToFrames(seconds: number) {
   return seconds * 24 + 1;
 }
 
+// 返回视频比例对应的统一 1K 画布尺寸，与图片模块保持一致。
+export function help_videoSize(ratio: string) {
+  const sizes: Record<string, { width: number; height: number }> = {
+    "16:9": { width: 1024, height: 576 },
+    "9:16": { width: 576, height: 1024 },
+    "3:4": { width: 768, height: 1024 },
+    "4:3": { width: 1024, height: 768 },
+  };
+  return sizes[ratio] || sizes["3:4"];
+}
+
 // 把本地 Session 文件路径转换为浏览器可访问的地址。
 export function help_mediaURL(path: string) {
   return `/media/${path.split("/").map(encodeURIComponent).join("/")}`;
